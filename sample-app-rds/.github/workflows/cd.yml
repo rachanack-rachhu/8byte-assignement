@@ -1,0 +1,136 @@
+name: CD
+
+# Runs on merge to main: build image -> scan -> push -> deploy staging -> (manual approval) -> deploy production
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write   # needed to push to GitHub Container Registry (GHCR)
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/sample-todo-app
+
+jobs:
+  build-and-push:
+    name: Build, Scan & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        run: echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ./app
+
+      - name: Scan image before pushing
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Push image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "Build/push failed on main (${{ github.sha }})"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  deploy-staging:
+    name: Deploy to Staging (EC2)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: staging   # maps to a GitHub Environment - can hold staging-only secrets
+    steps:
+      - name: Deploy over SSH to Staging EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_EC2_HOST }}
+          username: ${{ secrets.EC2_SSH_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG,GHCR_PAT,GHCR_USER
+          script: |
+            export IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+            export GHCR_PAT=${{ secrets.GITHUB_TOKEN }}
+            export GHCR_USER=${{ github.actor }}
+            bash /opt/sample-todo-app/deploy.sh ghcr.io/${{ github.repository }}/sample-todo-app:$IMAGE_TAG
+
+      - name: Health check staging
+        run: |
+          sleep 5
+          curl -f http://${{ secrets.STAGING_EC2_HOST }}:3000/health || exit 1
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "Staging deploy failed for ${{ github.sha }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  deploy-production:
+    name: Deploy to Production (EC2)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    # "production" environment should be configured in GitHub repo Settings > Environments
+    # with "Required reviewers" turned on - that's what creates the manual approval gate.
+    environment: production
+    steps:
+      - name: Deploy over SSH to Production EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_EC2_HOST }}
+          username: ${{ secrets.EC2_SSH_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG,GHCR_PAT,GHCR_USER
+          script: |
+            export IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+            export GHCR_PAT=${{ secrets.GITHUB_TOKEN }}
+            export GHCR_USER=${{ github.actor }}
+            bash /opt/sample-todo-app/deploy.sh ghcr.io/${{ github.repository }}/sample-todo-app:$IMAGE_TAG
+
+      - name: Health check production
+        run: |
+          sleep 5
+          curl -f http://${{ secrets.PROD_EC2_HOST }}:3000/health || exit 1
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "Deployed ${{ github.sha }} to production"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          slack-message: "Production deploy failed for ${{ github.sha }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
