@@ -7,11 +7,13 @@ on:
 
 permissions:
   contents: read
-  packages: write   # needed to push to GitHub Container Registry (GHCR)
+  packages: write    # needed to push to GitHub Container Registry (GHCR)
+  id-token: write    # needed for OIDC auth to AWS (no stored access keys)
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/sample-todo-app
+  AWS_REGION: ap-south-1
 
 jobs:
   build-and-push:
@@ -64,17 +66,45 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging   # maps to a GitHub Environment - can hold staging-only secrets
     steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::960645510575:role/github-actions-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get staging DB secret
+        id: dbsecret
+        uses: aws-actions/aws-secretsmanager-get-secrets@v2
+        with:
+          secret-ids: |
+            DB, staging/byte-database
+          parse-json-secrets: true
+
       - name: Deploy over SSH to Staging EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.STAGING_EC2_HOST }}
           username: ${{ secrets.EC2_SSH_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG,GHCR_PAT,GHCR_USER
+          envs: IMAGE_TAG,GHCR_PAT,GHCR_USER,DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DBNAME
           script: |
             export IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
             export GHCR_PAT=${{ secrets.GITHUB_TOKEN }}
             export GHCR_USER=${{ github.actor }}
+            export DB_HOST=${{ env.DB_HOST }}
+            export DB_PORT=${{ env.DB_PORT }}
+            export DB_USERNAME=${{ env.DB_USERNAME }}
+            export DB_PASSWORD=${{ env.DB_PASSWORD }}
+            export DB_DBNAME=${{ env.DB_DBNAME }}
+            sudo tee /opt/sample-todo-app/.env > /dev/null << ENVEOF
+            PGHOST=$DB_HOST
+            PGPORT=$DB_PORT
+            PGUSER=$DB_USERNAME
+            PGPASSWORD=$DB_PASSWORD
+            PGDATABASE=$DB_DBNAME
+            PGSSLMODE=require
+            PORT=3000
+            ENVEOF
             bash /opt/sample-todo-app/deploy.sh ghcr.io/${{ github.repository }}/sample-todo-app:$IMAGE_TAG
 
       - name: Health check staging
@@ -99,17 +129,45 @@ jobs:
     # with "Required reviewers" turned on - that's what creates the manual approval gate.
     environment: production
     steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::960645510575:role/github-actions-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get production DB secret
+        id: dbsecret
+        uses: aws-actions/aws-secretsmanager-get-secrets@v2
+        with:
+          secret-ids: |
+            DB, production/byte-database
+          parse-json-secrets: true
+
       - name: Deploy over SSH to Production EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_EC2_HOST }}
           username: ${{ secrets.EC2_SSH_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG,GHCR_PAT,GHCR_USER
+          envs: IMAGE_TAG,GHCR_PAT,GHCR_USER,DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_DBNAME
           script: |
             export IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
             export GHCR_PAT=${{ secrets.GITHUB_TOKEN }}
             export GHCR_USER=${{ github.actor }}
+            export DB_HOST=${{ env.DB_HOST }}
+            export DB_PORT=${{ env.DB_PORT }}
+            export DB_USERNAME=${{ env.DB_USERNAME }}
+            export DB_PASSWORD=${{ env.DB_PASSWORD }}
+            export DB_DBNAME=${{ env.DB_DBNAME }}
+            sudo tee /opt/sample-todo-app/.env > /dev/null << ENVEOF
+            PGHOST=$DB_HOST
+            PGPORT=$DB_PORT
+            PGUSER=$DB_USERNAME
+            PGPASSWORD=$DB_PASSWORD
+            PGDATABASE=$DB_DBNAME
+            PGSSLMODE=require
+            PORT=3000
+            ENVEOF
             bash /opt/sample-todo-app/deploy.sh ghcr.io/${{ github.repository }}/sample-todo-app:$IMAGE_TAG
 
       - name: Health check production
