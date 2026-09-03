@@ -7,7 +7,7 @@ set -euo pipefail
 
 IMAGE_REF="$1"
 CONTAINER_NAME="sample-todo-app"
-ENV_FILE="/opt/sample-todo-app/.env"   # holds PGHOST/PGUSER/PGPASSWORD etc. for THIS environment (staging or prod)
+ENV_FILE="/opt/sample-todo-app/.env"   # holds PGHOST/PGUSER/PGPASSWORD etc. for THIS environment (staging or prod).....
 
 echo "==> Logging into GHCR"
 echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
