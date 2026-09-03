@@ -59,15 +59,6 @@ jobs:
           PGSSLMODE: disable
         run: npm test
 
-      - name: Notify on failure (Slack)
-        if: failure()
-        uses: slackapi/slack-github-action@v1.27.0
-        with:
-          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          slack-message: "❌ CI failed on PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.html_url }}"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-
   dependency-scan:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
@@ -81,10 +72,8 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         run: npm ci
-        working-directory: app
       - name: npm audit (fails on high/critical)
         run: npm audit --audit-level=high
-        working-directory: app
         continue-on-error: false
 
   container-scan:
