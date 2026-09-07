@@ -5,7 +5,7 @@ A minimal, real, cloneable app you can use to practice the full flow:
 CD builds/pushes/deploys to staging → manual approval → deploy to production (EC2 + RDS)**.
 
 No Terraform — infrastructure is created manually via the AWS Console (see `deploy/ec2-setup.md`),
-and application deployment is automated entirely through GitHub Actions + SSH.
+and application deployment is automated entirely through GitHub Actions + SSH...
 
 ## What's in this repo
 
