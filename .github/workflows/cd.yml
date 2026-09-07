@@ -51,14 +51,18 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Notify on failure
+      - name: Notify on failure (Email)
         if: failure()
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: dawidd6/action-send-mail@v3
         with:
-          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          slack-message: "Build/push failed on main (${{ github.sha }})"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "CD failed: Build/push on main (${{ github.sha }})"
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub Actions
+          body: "Build/push failed on main (${{ github.sha }}). See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   deploy-staging:
     name: Deploy to Staging (EC2)
@@ -112,14 +116,18 @@ jobs:
           sleep 5
           curl -f http://${{ secrets.STAGING_EC2_HOST }}:3000/health || exit 1
 
-      - name: Notify on failure
+      - name: Notify on failure (Email)
         if: failure()
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: dawidd6/action-send-mail@v3
         with:
-          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          slack-message: "Staging deploy failed for ${{ github.sha }}"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "CD failed: Staging deploy (${{ github.sha }})"
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub Actions
+          body: "Staging deploy failed for ${{ github.sha }}. See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   deploy-production:
     name: Deploy to Production (EC2)
@@ -175,20 +183,28 @@ jobs:
           sleep 5
           curl -f http://${{ secrets.PROD_EC2_HOST }}:3000/health || exit 1
 
-      - name: Notify on success
+      - name: Notify on success (Email)
         if: success()
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: dawidd6/action-send-mail@v3
         with:
-          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          slack-message: "Deployed ${{ github.sha }} to production"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "Deployed to production (${{ github.sha }})"
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub Actions
+          body: "Deployed ${{ github.sha }} to production successfully."
 
-      - name: Notify on failure
+      - name: Notify on failure (Email)
         if: failure()
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: dawidd6/action-send-mail@v3
         with:
-          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
-          slack-message: "Production deploy failed for ${{ github.sha }}"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "CD failed: Production deploy (${{ github.sha }})"
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub Actions
+          body: "Production deploy failed for ${{ github.sha }}. See: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
