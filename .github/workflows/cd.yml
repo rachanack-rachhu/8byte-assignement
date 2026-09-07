@@ -131,10 +131,8 @@ jobs:
 
   deploy-production:
     name: Deploy to Production (EC2)
-    needs: deploy-staging
+    needs: [build-and-push, deploy-staging]
     runs-on: ubuntu-latest
-    # "production" environment should be configured in GitHub repo Settings > Environments
-    # with "Required reviewers" turned on - that's what creates the manual approval gate.
     environment: production
     steps:
       - name: Configure AWS credentials (OIDC)
