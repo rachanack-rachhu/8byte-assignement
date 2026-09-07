@@ -81,7 +81,7 @@ jobs:
         uses: aws-actions/aws-secretsmanager-get-secrets@v2
         with:
           secret-ids: |
-            DB, byte-database
+            DB, byte-secret
           parse-json-secrets: true
 
       - name: Deploy over SSH to Staging EC2
@@ -148,7 +148,7 @@ jobs:
         uses: aws-actions/aws-secretsmanager-get-secrets@v2
         with:
           secret-ids: |
-            DB, production/byte-database
+            DB, byte-secret
           parse-json-secrets: true
 
       - name: Deploy over SSH to Production EC2
