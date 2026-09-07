@@ -39,7 +39,7 @@ jobs:
         run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ./app
 
       - name: Scan image before pushing
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}'
           format: 'table'
