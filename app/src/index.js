@@ -1,10 +1,14 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const { initSchema, pool } = require('./db');
 const todosRouter = require('./routes/todos');
 
 const app = express();
 app.use(express.json());
+
+// Serve the frontend UI (public/index.html and any assets in that folder)
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Simple health check - used by the Load Balancer / ECS / your CI pipeline
 app.get('/health', async (req, res) => {
@@ -14,10 +18,6 @@ app.get('/health', async (req, res) => {
   } catch (err) {
     res.status(500).json({ status: 'error', db: 'disconnected', message: err.message });
   }
-});
-
-app.get('/', (req, res) => {
-  res.json({ message: 'Sample Todo API is running', version: process.env.APP_VERSION || 'dev' });
 });
 
 app.use('/todos', todosRouter);
