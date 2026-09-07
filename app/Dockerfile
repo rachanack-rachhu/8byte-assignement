@@ -8,6 +8,15 @@ RUN npm ci --omit=dev
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Patch OS-level packages (fixes OpenSSL libssl3/libcrypto3 CVEs from the base image)
+RUN apk update && apk upgrade --no-cache
+
+# Remove npm/npx entirely - the app runs via `node`, never via `npm`, at runtime.
+# This eliminates the vulnerable dependencies bundled inside npm's own node_modules.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 # Run as non-root user (security best practice)
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=deps /app/node_modules ./node_modules
