@@ -7,8 +7,8 @@ on:
 
 permissions:
   contents: read
-  packages: write    # needed to push to GitHub Container Registry (GHCR)
-  id-token: write    # needed for OIDC auth to AWS (no stored access keys)
+  packages: write    # needed to push to GitHub Container Registry (GHCR).
+  id-token: write    # needed for OIDC auth to AWS (no stored access keys).
 
 env:
   REGISTRY: ghcr.io
